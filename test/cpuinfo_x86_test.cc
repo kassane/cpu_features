@@ -926,6 +926,20 @@ TEST_F(CpuidX86Test, AMD_K18_ZEN_DHYANA_OCTAL_CORE_C86_3250) {
   EXPECT_EQ(GetX86Microarchitecture(&info), X86Microarchitecture::AMD_ZEN);
 }
 
+// http://users.atw.hu/instlatx64/AuthenticAMD/AuthenticAMD08A0F00_K17_Mendocino_01_CPUID.txt
+TEST_F(CpuidX86Test, AMD_ZEN2_MENDOCINO) {
+  cpu().SetLeaves({
+      {{0x00000000, 0}, Leaf{0x00000010, 0x68747541, 0x444D4163, 0x69746E65}},
+      {{0x00000001, 0}, Leaf{0x008A0F00, 0x00080800, 0x7EF8320B, 0x178BFBFF}},
+  });
+  const auto info = GetX86Info();
+
+  EXPECT_EQ(info.model, 0xA0);
+  EXPECT_EQ(info.family, 0x17);
+  EXPECT_STREQ(info.vendor, CPU_FEATURES_VENDOR_AUTHENTIC_AMD);
+  EXPECT_EQ(GetX86Microarchitecture(&info), X86Microarchitecture::AMD_ZEN2);
+}
+
 // http://users.atw.hu/instlatx64/GenuineIntel/GenuineIntel00906A4_AlderLakeP_00_CPUID.txt
 TEST_F(CpuidX86Test, INTEL_ALDER_LAKE_AVX_VNNI) {
   cpu().SetOsBackupsExtendedRegisters(true);
@@ -1641,6 +1655,38 @@ TEST_F(CpuidX86Test, INTEL_HASWELL_LZCNT) {
   EXPECT_EQ(GetX86Microarchitecture(&info), X86Microarchitecture::INTEL_HSW);
 
   EXPECT_TRUE(info.features.lzcnt);
+}
+
+// http://users.atw.hu/instlatx64/GenuineIntel/GenuineIntel00B06A2_RaptorLakeP_03_CPUID.txt
+TEST_F(CpuidX86Test, INTEL_RAPTOR_LAKE_P) {
+  cpu().SetLeaves({
+      {{0x00000000, 0}, Leaf{0x00000020, 0x756E6547, 0x6C65746E, 0x49656E69}},
+      {{0x00000001, 0}, Leaf{0x000B06A3, 0x00400800, 0x7FFAFBFF, 0xBFEBFBFF}},
+      {{0x80000000, 0}, Leaf{0x80000008, 0x00000000, 0x00000000, 0x00000000}},
+      {{0x80000001, 0}, Leaf{0x00000000, 0x00000000, 0x00000121, 0x2C100000}},
+  });
+  const auto info = GetX86Info();
+
+  EXPECT_STREQ(info.vendor, CPU_FEATURES_VENDOR_GENUINE_INTEL);
+  EXPECT_EQ(info.family, 0x06);
+  EXPECT_EQ(info.model, 0xBA);
+  EXPECT_EQ(GetX86Microarchitecture(&info), X86Microarchitecture::INTEL_RPL);
+}
+
+// http://users.atw.hu/instlatx64/GenuineIntel/GenuineIntel00B06F2_RaptorLakeS_02_CPUID.txt
+TEST_F(CpuidX86Test, INTEL_RAPTOR_LAKE_S) {
+  cpu().SetLeaves({
+      {{0x00000000, 0}, Leaf{0x00000020, 0x756E6547, 0x6C65746E, 0x49656E69}},
+      {{0x00000001, 0}, Leaf{0x000B06F2, 0x00800800, 0x7FFAFBFF, 0xBFEBFBFF}},
+      {{0x80000000, 0}, Leaf{0x80000008, 0x00000000, 0x00000000, 0x00000000}},
+      {{0x80000001, 0}, Leaf{0x00000000, 0x00000000, 0x00000121, 0x2C100000}},
+  });
+  const auto info = GetX86Info();
+
+  EXPECT_STREQ(info.vendor, CPU_FEATURES_VENDOR_GENUINE_INTEL);
+  EXPECT_EQ(info.family, 0x06);
+  EXPECT_EQ(info.model, 0xBF);
+  EXPECT_EQ(GetX86Microarchitecture(&info), X86Microarchitecture::INTEL_RPL);
 }
 
 // https://github.com/google/cpu_features/issues/200
