@@ -17,3 +17,7 @@ out/
 
 # Per-user bazelrc files
 user.bazelrc
+
+# Zig build
+/zig-cache/
+/zig-out/
