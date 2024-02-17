@@ -9,36 +9,48 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    lib_cpu.addIncludePath("include");
-    lib_cpu.addIncludePath("incude/internal");
-    lib_cpu.addCSourceFiles(&.{
-        "src/filesystem.c",
-        "src/stack_line_reader.c",
-        "src/string_view.c",
-        switch (target.getCpuArch()) {
-            .aarch64_32 => "src/impl_arm_linux_or_android.c",
-            .aarch64 => switch (target.getOsTag()) {
-                .windows => "src/impl_aarch64_windows.c",
-                .macos => @panic("unavaliable"),
-                else => "src/impl_aarch64_linux_or_android.c",
+    lib_cpu.addIncludePath(.{ .path = "include" });
+    lib_cpu.addCSourceFiles(.{
+        .files = &.{
+            "src/filesystem.c",
+            "src/stack_line_reader.c",
+            "src/string_view.c",
+            switch (lib_cpu.rootModuleTarget().cpu.arch) {
+                .aarch64_32 => "src/impl_arm_linux_or_android.c",
+                .aarch64 => switch (lib_cpu.rootModuleTarget().os.tag) {
+                    .windows => "src/impl_aarch64_windows.c",
+                    .macos => "impl_aarch64_macos_or_iphone.c",
+                    else => "src/impl_aarch64_linux_or_android.c",
+                },
+                .x86, .x86_64 => switch (lib_cpu.rootModuleTarget().os.tag) {
+                    .windows => "src/impl_x86_windows.c",
+                    .macos => "src/impl_x86_macos.c",
+                    .linux => "src/impl_x86_linux_or_android.c",
+                    else => "src/impl_x86_freebsd.c",
+                },
+                .mips, .mipsel => "src/impl_mips_linux_or_android.c",
+                .powerpc, .powerpc64 => "src/impl_ppc_linux.c",
+                .riscv64 => "src/impl_riscv_linux.c",
+                else => @panic("Unknown archtecture"),
             },
-            .x86, .x86_64 => switch (target.getOsTag()) {
-                .windows => "src/impl_x86_windows.c",
-                .macos => "src/impl_x86_macos.c",
-                .linux => "src/impl_x86_linux_or_android.c",
-                else => "src/impl_x86_freebsd.c",
-            },
-            .mips, .mipsel => "src/impl_mips_linux_or_android.c",
-            .powerpc, .powerpc64 => "src/impl_ppc_linux.c",
-            .riscv64 => "src/impl_riscv_linux.c",
-            else => @panic("Unknown archtecture"),
         },
-    }, cflags);
-    if (target.isLinux()) {
-        lib_cpu.addCSourceFile("src/hwcaps.c", cflags);
+        .flags = cflags,
+    });
+    if (lib_cpu.rootModuleTarget().os.tag == .linux or lib_cpu.rootModuleTarget().isAndroid()) {
+        lib_cpu.addCSourceFiles(.{ .files = &.{
+            "src/hwcaps.c",
+            "src/hwcaps_linux_or_android.c",
+        }, .flags = cflags });
         lib_cpu.defineCMacro("HAVE_STRONG_GETAUXVAL", null);
     }
-    if (target.isDarwin()) lib_cpu.defineCMacro("HAVE_SYSCTLBYNAME", null);
+    if (lib_cpu.rootModuleTarget().isBSD()) {
+        lib_cpu.addCSourceFiles(.{ .files = &.{
+            "src/hwcaps.c",
+            "src/hwcaps_freebsd.c",
+        }, .flags = cflags });
+    }
+    if (lib_cpu.rootModuleTarget().isDarwin())
+        lib_cpu.defineCMacro("HAVE_SYSCTLBYNAME", null);
 
     lib_cpu.linkLibC();
     lib_cpu.pie = b.option(bool, "pie", "Build library with Position Independent Executable") orelse true;
@@ -55,13 +67,13 @@ pub fn build(b: *std.Build) void {
 fn buildExe(b: *std.Build, properties: BuildInfo) void {
     const exe = b.addExecutable(.{
         .name = properties.filename(),
-        .target = properties.lib.target,
-        .optimize = properties.lib.optimize,
+        .target = properties.lib.root_module.resolved_target.?,
+        .optimize = properties.lib.root_module.optimize.?,
     });
-    for (properties.lib.include_dirs.items) |dir| {
-        exe.include_dirs.append(dir) catch {};
+    for (properties.lib.root_module.include_dirs.items) |dir| {
+        exe.root_module.include_dirs.append(b.allocator, dir) catch {};
     }
-    exe.addCSourceFile(properties.path, cflags);
+    exe.addCSourceFile(.{ .file = .{ .path = properties.path }, .flags = cflags });
     exe.linkLibrary(properties.lib);
     exe.linkLibC();
 
@@ -88,7 +100,7 @@ const BuildInfo = struct {
     path: []const u8,
 
     fn filename(self: BuildInfo) []const u8 {
-        var split = std.mem.split(u8, std.fs.path.basename(self.path), ".");
+        var split = std.mem.splitSequence(u8, std.fs.path.basename(self.path), ".");
         return split.first();
     }
 };
